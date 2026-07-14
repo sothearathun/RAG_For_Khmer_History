@@ -44,6 +44,7 @@ _TITLE_OVERRIDES = {
     "history-of-cambodia-1993-e2-80-93prese": "History of Cambodia (1993-present)",
     "kingdom-of-cambodia-1953-e2-80-931970": "Kingdom of Cambodia (1953-1970)",
     "united-nations-e2-80-93administered-ca": "United Nations Administered Cambodia",
+    "1997-cambodian-coup-d-etat": "1997 Cambodian coup d'état",
 }
 
 

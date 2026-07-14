@@ -5,16 +5,22 @@ Two modes are provided:
 - "extractive" (default): no API key needed, works immediately. Just stitches
   together the retrieved chunks so you can verify retrieval quality before wiring
   up an LLM.
-- "llm": calls an LLM to write a grounded answer from the retrieved context.
-  TODO: fill in your provider of choice (Anthropic, OpenAI, a local model via
-  Ollama, etc). A minimal Anthropic example is sketched below — install the
-  `anthropic` package and set the ANTHROPIC_API_KEY environment variable to use it.
+- "llm": calls Gemini (Google AI) to write a grounded answer from the
+  retrieved context, citing source titles. Requires the `google-genai` package
+  and a GEMINI_API_KEY environment variable (loaded from .env via python-dotenv).
 """
 
 import os
 from typing import List, Tuple
 
+from dotenv import load_dotenv
+from google import genai
+
 from .ingest import Chunk
+
+load_dotenv()
+
+_MODEL = "gemini-2.5-flash"
 
 
 def extractive_answer(query: str, retrieved: List[Tuple[Chunk, float]]) -> str:
@@ -26,14 +32,25 @@ def extractive_answer(query: str, retrieved: List[Tuple[Chunk, float]]) -> str:
     return "\n".join(lines)
 
 
-def llm_answer(query: str, retrieved: List[Tuple[Chunk, float]]) -> str:
-    """TODO: replace this with a real LLM call once retrieval is working well."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+def llm_answer(
+    query: str,
+    retrieved: List[Tuple[Chunk, float]],
+    history: List[Tuple[str, str]] = None,
+) -> str:
+    """Ask Gemini to answer the query, grounded only in the retrieved chunks.
+
+    `history` is prior (question, answer) turns from this session, sent as real
+    conversation turns so follow-ups ("what about after that?") resolve correctly.
+    Retrieval itself is still keyed off the current query text only.
+    """
+    if not retrieved:
+        return "No relevant passages were found for that query."
+
+    api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return (
-            "[LLM mode not configured] Set ANTHROPIC_API_KEY (or wire up your own "
-            "provider in rag/generate.py) to enable grounded LLM answers. "
-            "Falling back to extractive mode:\n\n" + extractive_answer(query, retrieved)
+            "[LLM mode not configured] Set GEMINI_API_KEY to enable grounded LLM "
+            "answers. Falling back to extractive mode:\n\n" + extractive_answer(query, retrieved)
         )
 
     context = "\n\n".join(f"Source: {c.doc_title}\n{c.text}" for c, _ in retrieved)
@@ -42,20 +59,23 @@ def llm_answer(query: str, retrieved: List[Tuple[Chunk, float]]) -> str:
         f"you used.\n\n{context}\n\nQuestion: {query}\nAnswer:"
     )
 
-    # TODO: uncomment once the `anthropic` package is installed
-    # import anthropic
-    # client = anthropic.Anthropic(api_key=api_key)
-    # response = client.messages.create(
-    #     model="claude-sonnet-4-6",
-    #     max_tokens=500,
-    #     messages=[{"role": "user", "content": prompt}],
-    # )
-    # return response.content[0].text
+    contents = []
+    for prior_query, prior_answer in (history or []):
+        contents.append({"role": "user", "parts": [{"text": prior_query}]})
+        contents.append({"role": "model", "parts": [{"text": prior_answer}]})
+    contents.append({"role": "user", "parts": [{"text": prompt}]})
 
-    return "[TODO] Wire up your LLM call in rag/generate.py using the prompt below:\n\n" + prompt
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(model=_MODEL, contents=contents)
+    return response.text
 
 
-def generate_answer(query: str, retrieved: List[Tuple[Chunk, float]], mode: str = "extractive") -> str:
+def generate_answer(
+    query: str,
+    retrieved: List[Tuple[Chunk, float]],
+    mode: str = "extractive",
+    history: List[Tuple[str, str]] = None,
+) -> str:
     if mode == "llm":
-        return llm_answer(query, retrieved)
+        return llm_answer(query, retrieved, history=history)
     return extractive_answer(query, retrieved)

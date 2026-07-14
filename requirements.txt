@@ -4,8 +4,10 @@ scikit-learn
 numpy
 pandas
 
-# Optional upgrades — install when you get there
 sentence-transformers   # real embeddings instead of TF-IDF
+google-genai            # LLM-generated answers (llm mode in rag/generate.py)
+python-dotenv           # loads GEMINI_API_KEY from .env
+
+# Optional upgrades — install when you get there
 # faiss-cpu               # or chromadb, for a real vector database at scale
-# anthropic                # or openai / ollama, for LLM-generated answers
 # pypdf                    # if you want to ingest PDF documents

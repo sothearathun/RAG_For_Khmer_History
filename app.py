@@ -10,6 +10,8 @@ your final project by upgrading each piece (see the TODOs in rag/embed_store.py
 and rag/generate.py) without needing to touch this file's overall structure.
 """
 
+import time
+
 import streamlit as st
 
 from rag.ingest import load_documents, build_chunk_records
@@ -32,33 +34,62 @@ def load_store():
 
 store, docs, chunks = load_store()
 
+if "history" not in st.session_state:
+    st.session_state.history = []
+
 with st.sidebar:
     st.header("Settings")
     top_k = st.slider("Number of chunks to retrieve", min_value=1, max_value=10, value=3)
     mode = st.radio("Answer mode", ["extractive", "llm"], index=0,
-                     help="Extractive works with no setup. LLM mode needs ANTHROPIC_API_KEY set.")
+                     help="Extractive works with no setup. LLM mode needs GEMINI_API_KEY set.")
     st.divider()
-    st.caption(f"Indexed **{len(docs)}** documents \u2192 **{len(chunks)}** chunks")
+    st.caption(f"Indexed **{len(docs)}** documents → **{len(chunks)}** chunks")
     with st.expander("Documents in this index"):
         for d in docs:
             st.write(f"- {d['title']}")
+    st.divider()
+    if st.button("Clear conversation"):
+        st.session_state.history = []
+        st.rerun()
 
 st.title("🔎 RAG-Based AI Search System")
-st.caption("Ask a question about the indexed documents below.")
+st.caption("Ask a question about the indexed documents below. In LLM mode, follow-up "
+           "questions can refer back to earlier turns in this conversation.")
 
-query = st.text_input("Your question", placeholder="e.g. How does content-based filtering rank items?")
-search_clicked = st.button("Search", type="primary")
+for turn in st.session_state.history:
+    with st.chat_message("user"):
+        st.write(turn["query"])
+    with st.chat_message("assistant"):
+        st.write(turn["answer"])
+        st.caption(
+            f"⏱️ retrieval {turn['retrieval_ms']:.0f} ms · "
+            f"generation {turn['generation_ms']:.0f} ms · "
+            f"total {turn['retrieval_ms'] + turn['generation_ms']:.0f} ms"
+        )
+        with st.expander("Sources"):
+            for chunk, score in turn["retrieved"]:
+                st.markdown(f"**{chunk.doc_title}** · similarity {score:.2f}")
+                st.write(chunk.text)
 
-if search_clicked and query.strip():
+query = st.chat_input("Ask a question, e.g. Who led the Khmer Rouge?")
+
+if query and query.strip():
+    history_pairs = [(t["query"], t["answer"]) for t in st.session_state.history]
+
+    t0 = time.perf_counter()
     retrieved = store.query(query, top_k=top_k)
-    answer = generate_answer(query, retrieved, mode=mode)
+    retrieval_ms = (time.perf_counter() - t0) * 1000
 
-    st.subheader("Answer")
-    st.write(answer)
+    t1 = time.perf_counter()
+    answer = generate_answer(query, retrieved, mode=mode, history=history_pairs)
+    generation_ms = (time.perf_counter() - t1) * 1000
 
-    st.subheader("Sources")
-    for chunk, score in retrieved:
-        with st.expander(f"{chunk.doc_title}  \u00b7  similarity {score:.2f}"):
-            st.write(chunk.text)
-elif search_clicked:
-    st.warning("Type a question first.")
+    st.session_state.history.append({
+        "query": query,
+        "answer": answer,
+        "retrieved": retrieved,
+        "mode": mode,
+        "retrieval_ms": retrieval_ms,
+        "generation_ms": generation_ms,
+    })
+    st.rerun()

@@ -16,14 +16,28 @@ like *"How does content-based filtering rank items?"* against the sample documen
 
 ## What's already working
 
-- **Ingestion** (`rag/ingest.py`) — loads `.txt` files and splits them into
-  overlapping chunks.
-- **Retrieval** (`rag/embed_store.py`) — vectorizes chunks with TF-IDF (the same
-  technique from the Week 14 lab) and ranks them by cosine similarity.
+- **Ingestion** (`rag/ingest.py`) — loads `.txt` files, strips Wikipedia scrape
+  artifacts, and splits them into paragraph-aware, section-tagged, overlapping
+  chunks (see the module docstring for the chunking rationale).
+- **Retrieval** (`rag/embed_store.py`) — embeds chunks with `sentence-transformers`
+  (`all-MiniLM-L6-v2`) and ranks them by cosine similarity (dot product over
+  L2-normalized vectors), searched in-memory with numpy.
 - **Generation** (`rag/generate.py`) — an `extractive` mode that needs no API key,
   plus an `llm` mode stub ready for you to wire up a real model.
 - **Interface** (`app.py`) — a Streamlit search UI: query box, answer panel, and an
   expandable, scored list of source chunks. Sidebar controls `top_k` and answer mode.
+
+## Design decisions
+
+- **Vector index: in-memory numpy, not FAISS/Chroma.** The corpus (19 Cambodian
+  history articles) produces 1,003 chunks → a `(1003, 384)` float32 matrix
+  (~1.5 MB). A full linear-scan query — embed the question + dot product against
+  every chunk — measures ~50ms end-to-end, dominated by encoding the query text,
+  not the search itself. FAISS/Chroma exist to avoid an O(n) scan at tens of
+  thousands+ chunks; at this scale they'd add a dependency and an on-disk index
+  with no measurable benefit. `VectorStore.build`/`.query` keep the same interface
+  either way, so swapping in FAISS later is a localized change to
+  `rag/embed_store.py` only, not a rewrite.
 
 ## Project structure
 
@@ -40,14 +54,14 @@ final_project_starter/
 
 ## Your upgrade path (this is most of the final project)
 
-1. **Swap in your own dataset.** Replace the files in `data/sample_docs/` with your
-   chosen domain (product docs, papers, articles, notes — anything text-heavy).
-2. **Upgrade retrieval from TF-IDF to real embeddings.** In `rag/embed_store.py`,
-   replace `TfidfVectorizer` with a sentence-embedding model (e.g.
-   `sentence-transformers`) or an embeddings API. Keep the `VectorStore.build` /
-   `.query` interface the same so `app.py` doesn't need to change.
-3. **Move to a real vector database once your corpus is large**, e.g. FAISS or
-   Chroma, for faster search than the in-memory cosine similarity used here.
+1. ~~**Swap in your own dataset.**~~ Done — `data/` holds 19 Wikipedia articles on
+   Cambodian history (replacing the `data/sample_docs/` samples).
+2. ~~**Upgrade retrieval from TF-IDF to real embeddings.**~~ Done — `rag/embed_store.py`
+   uses `sentence-transformers` (`all-MiniLM-L6-v2`). The `VectorStore.build` /
+   `.query` interface is unchanged, so `app.py` needed no edits.
+3. ~~**Move to a real vector database once your corpus is large.**~~ Evaluated and
+   skipped — see [Design decisions](#design-decisions): 1,003 chunks searched
+   in-memory in ~50ms, well under the scale where FAISS/Chroma would pay off.
 4. **Wire up an LLM in `rag/generate.py`'s `llm_answer`** so answers are generated
    and grounded in the retrieved context, with citations back to source documents.
 5. **Extend the interface**: file upload for new documents, highlighting matched
