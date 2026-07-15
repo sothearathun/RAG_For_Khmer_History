@@ -41,7 +41,7 @@ with st.sidebar:
     st.header("Settings")
     top_k = st.slider("Number of chunks to retrieve", min_value=1, max_value=10, value=3)
     mode = st.radio("Answer mode", ["extractive", "llm"], index=0,
-                     help="Extractive works with no setup. LLM mode needs GEMINI_API_KEY set.")
+                     help="Extractive works with no setup. LLM mode needs DEEPSEEK_API_KEY set.")
     st.divider()
     st.caption(f"Indexed **{len(docs)}** documents → **{len(chunks)}** chunks")
     with st.expander("Documents in this index"):

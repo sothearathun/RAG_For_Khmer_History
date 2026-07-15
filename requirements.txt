@@ -1,12 +1,10 @@
 # Core (required to run the starter as-is)
 streamlit
-scikit-learn
 numpy
-pandas
 
 sentence-transformers   # real embeddings instead of TF-IDF
-google-genai            # LLM-generated answers (llm mode in rag/generate.py)
-python-dotenv           # loads GEMINI_API_KEY from .env
+openai                  # LLM-generated answers via DeepSeek's OpenAI-compatible API
+python-dotenv           # loads DEEPSEEK_API_KEY from .env
 
 # Optional upgrades — install when you get there
 # faiss-cpu               # or chromadb, for a real vector database at scale
