@@ -19,6 +19,30 @@ from rag.embed_store import VectorStore
 from rag.generate import generate_answer
 
 DATA_FOLDER = "data"
+OVERVIEW_PHRASES = (
+    "all khmer history",
+    "all cambodian history",
+    "history of cambodia",
+    "khmer history overview",
+    "cambodian history overview",
+)
+OVERVIEW_TOP_K = 8
+COMPREHENSIVE_PHRASES = (
+    "all ",
+    "important events",
+    "major events",
+    "key events",
+    "timeline",
+    "chronology",
+    "overview",
+    "summarize",
+    "summary",
+    "tell me about",
+    "describe",
+    "explain",
+    "key developments",
+)
+COMPREHENSIVE_TOP_K = 8
 
 st.set_page_config(page_title="RAG Search", page_icon="🔎", layout="wide")
 
@@ -52,8 +76,8 @@ with st.sidebar:
         st.session_state.history = []
         st.rerun()
 
-st.title("🔎 RAG-Based AI Search System")
-st.caption("Ask a question about the indexed documents below. In LLM mode, follow-up "
+st.title("🔎 RAG-Based AI Search System - Khmer History")
+st.caption("Ask a question about the indexed documents (Khmer History) below. In LLM mode, follow-up "
            "questions can refer back to earlier turns in this conversation.")
 
 for turn in st.session_state.history:
@@ -77,11 +101,28 @@ if query and query.strip():
     history_pairs = [(t["query"], t["answer"]) for t in st.session_state.history]
 
     t0 = time.perf_counter()
-    retrieved = store.query(query, top_k=top_k)
+    normalized_query = query.lower()
+    is_overview = any(phrase in normalized_query for phrase in OVERVIEW_PHRASES)
+    is_comprehensive = any(
+        phrase in normalized_query for phrase in COMPREHENSIVE_PHRASES
+    )
+    if is_overview:
+        retrieved = store.query_diverse(query, top_k=OVERVIEW_TOP_K)
+    elif is_comprehensive:
+        retrieved = store.query_mmr(query, top_k=COMPREHENSIVE_TOP_K)
+    else:
+        retrieved = store.query(query, top_k=top_k)
     retrieval_ms = (time.perf_counter() - t0) * 1000
 
     t1 = time.perf_counter()
-    answer = generate_answer(query, retrieved, mode=mode, history=history_pairs)
+    answer = generate_answer(
+        query,
+        retrieved,
+        mode=mode,
+        history=history_pairs,
+        overview=is_overview,
+        comprehensive=is_comprehensive,
+    )
     generation_ms = (time.perf_counter() - t1) * 1000
 
     st.session_state.history.append({

@@ -8,11 +8,19 @@ marked upgrade path so you can grow it into your real final submission.
 
 ```bash
 pip install -r requirements.txt
-streamlit run app.py
+python -m streamlit run app.py
 ```
 
 Open the URL Streamlit prints (usually `http://localhost:8501`) and ask a question
 like *"Who led the Khmer Rouge?"* against the indexed Cambodian history articles.
+The `python -m` form avoids problems caused by a stale `streamlit` launcher after
+moving or copying a virtual environment.
+
+The system also supports broader requests, for example:
+
+- *"Talk about all Khmer history"* — a chronological, multi-document overview.
+- *"Give me all important events during Khmer Empire"* — broader, non-duplicated
+  source coverage for an in-depth answer.
 
 ## What's already working
 
@@ -27,8 +35,12 @@ like *"Who led the Khmer Rouge?"* against the indexed Cambodian history articles
   answers, including multi-turn conversation context.
 - **Interface** (`app.py`) — a Streamlit chat UI: conversation history rendered as
   chat bubbles, expandable scored source chunks, a retrieval/generation latency
-  caption per turn, and a Clear conversation button. Sidebar controls `top_k` and
-  answer mode.
+  caption per turn, and a Clear conversation button. Broad Khmer/Cambodian-history
+  overview prompts automatically retrieve eight chunks from different documents so
+  the LLM can produce a grounded chronological summary. Other broad prompts (such
+  as timelines, summaries, explanations, or "all important events") use
+  relevance-and-diversity retrieval to supply non-redundant context. Sidebar
+  controls `top_k` and answer mode.
 
 ## Design decisions
 
@@ -63,23 +75,26 @@ like *"Who led the Khmer Rouge?"* against the indexed Cambodian history articles
   measures ~50ms end-to-end, dominated by encoding the query text, not the
   search itself. FAISS/Chroma exist to avoid an O(n) scan at tens of
   thousands+ chunks; at this scale they'd add a dependency and an on-disk
-  index with no measurable benefit. `VectorStore.build`/`.query` keep the same
-  interface either way, so swapping in FAISS later is a localized change to
-  `rag/embed_store.py` only, not a rewrite.
+  index with no measurable benefit. `VectorStore.build`, `.query`,
+  `.query_diverse`, and `.query_mmr` keep retrieval behind one interface, so
+  swapping in FAISS later is a localized change to `rag/embed_store.py` only,
+  not a rewrite.
 - **LLM: DeepSeek (`deepseek-v4-flash`), called via the OpenAI-compatible API.**
   Free-tier friendly for a course project (originally built against Gemini —
   see [EVALUATION.md](EVALUATION.md) for that history and why it changed).
   `rag/generate.py`'s `llm_answer()` sends prior conversation turns as real
   chat history (not just string-concatenated into the prompt), so multi-turn
   follow-ups resolve correctly.
-- **Evaluation results: 8/10 fully correct and grounded** on a 10-query test set
+- **Evaluation results: 9/10 fully correct and grounded** on a 10-query test set
   (9 in-domain + 1 adversarial out-of-domain). The one hallucinated citation
   found — an out-of-domain query answered from the model's general knowledge
   but cited to an unrelated source — was root-caused and **fixed** with a
   similarity-score floor (`rag/generate.py`) that refuses before ever calling
   the LLM, verified live afterward. Two corpus/chunking edge cases were also
   found and documented (not fixed — cosmetic, don't affect answer quality).
-  Full table, scoring, and analysis in [EVALUATION.md](EVALUATION.md).
+  A supplemental broad-question test also verifies that the coverage-oriented
+  retrieval path answers an in-depth Khmer Empire question with eight retrieved
+  passages. Full table, scoring, and analysis in [EVALUATION.md](EVALUATION.md).
 
 ## Project structure
 

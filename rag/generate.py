@@ -50,6 +50,8 @@ def llm_answer(
     query: str,
     retrieved: List[Tuple[Chunk, float]],
     history: List[Tuple[str, str]] = None,
+    overview: bool = False,
+    comprehensive: bool = False,
 ) -> str:
     """Ask DeepSeek to answer the query, grounded only in the retrieved chunks.
 
@@ -72,6 +74,24 @@ def llm_answer(
         )
 
     context = "\n\n".join(f"Source: {c.doc_title}\n{c.text}" for c, _ in retrieved)
+    overview_instruction = (
+        "This is a broad history-overview request. Build a concise chronological "
+        "summary from the provided sources, grouping the supported periods into a "
+        "clear timeline. Cover only what the sources support; omit a period or say "
+        "that the provided sources do not cover it when necessary. Do not decline "
+        "the entire request merely because the sources do not cover every era.\n\n"
+        if overview
+        else ""
+    )
+    comprehensive_instruction = (
+        "This is a broad or in-depth request. Give a well-organized answer that "
+        "covers the requested scope using multiple provided passages. For events, "
+        "a timeline, or historical developments, use chronological bullets or short "
+        "dated sections where the sources support them. Do not repeat near-duplicate "
+        "details, and distinguish sourced facts from gaps in the provided material.\n\n"
+        if comprehensive and not overview
+        else ""
+    )
     prompt = (
         "Answer clearly and directly, like a knowledgeable person explaining "
         "something to a colleague — warm but not effusive, no forced enthusiasm "
@@ -84,7 +104,7 @@ def llm_answer(
         "to answer, respond with exactly: \"I don't have information about this in "
         "the provided sources.\" Never cite a source unless it genuinely supports "
         "the specific claim you're attaching it to. Cite the source title(s) you "
-        f"used.\n\n{context}\n\nQuestion: {query}\nAnswer:"
+        f"used.\n\n{overview_instruction}{comprehensive_instruction}{context}\n\nQuestion: {query}\nAnswer:"
     )
 
     messages = []
@@ -103,7 +123,15 @@ def generate_answer(
     retrieved: List[Tuple[Chunk, float]],
     mode: str = "extractive",
     history: List[Tuple[str, str]] = None,
+    overview: bool = False,
+    comprehensive: bool = False,
 ) -> str:
     if mode == "llm":
-        return llm_answer(query, retrieved, history=history)
+        return llm_answer(
+            query,
+            retrieved,
+            history=history,
+            overview=overview,
+            comprehensive=comprehensive,
+        )
     return extractive_answer(query, retrieved)

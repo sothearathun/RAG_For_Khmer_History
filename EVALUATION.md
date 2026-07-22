@@ -1,5 +1,47 @@
 # Evaluation
 
+## Updated-code rerun — 22 July 2026
+
+The full 10-query suite was rerun after adding coverage-oriented retrieval for
+broad prompts. The standard-query results remain **9/10 fully grounded/correct**:
+all nine in-domain queries retrieved their expected document in the top three,
+query 1 retained its weaker-but-correct tangential citation, query 9 correctly
+declined to invent an unsupported cause, and the out-of-domain France query was
+refused by the 0.45 relevance gate (top score: 0.352).
+
+The new behavior was tested separately with **"give me all important events
+during Khmer Empire"**. It selected eight relevance-and-diversity-oriented
+chunks, including a *Khmer Empire* source, and produced a grounded LLM answer
+instead of declining the broad request. This confirms that fact questions still
+use the regular top-k path while timelines, summaries, explanations, and
+"all important events" prompts now receive broader non-duplicated context.
+
+## Rerun — 22 July 2026
+
+Step 7 was rerun against the current full 21-document corpus with
+`all-MiniLM-L6-v2` retrieval (`top_k=3`) and DeepSeek `deepseek-v4-flash` in
+`llm` mode. All nine in-domain queries retrieved their expected document in the
+top three. The out-of-domain query was correctly rejected before an LLM request
+by the 0.45 similarity floor.
+
+| # | Query | Expected source retrieved in top-3? | Grounded/correct result |
+|---|---|---|---|
+| 1 | Who led the Khmer Rouge? | Yes — Democratic Kampuchea (0.707) | Partially grounded: correct leadership answer, but it cites the tangential Cambodian-Vietnamese War chunk rather than Democratic Kampuchea. |
+| 2 | When did Cambodia gain independence from France? | Yes — French Protectorate Of Cambodia (0.733) | Yes — 9 November 1953. |
+| 3 | Who was Norodom Sihanouk? | Yes — Norodom Sihanouk (0.675) | Yes — accurate summary and source citation. |
+| 4 | What happened during the 1997 Cambodian coup? | Yes — 1997 Cambodian coup d'état (0.731) | Yes — correctly identifies Hun Sen, Norodom Ranariddh, and the factional fighting. |
+| 5 | What was Funan? | Yes — Funan (0.615) | Yes — correctly describes the polity, Chenla's absorption, and the cited historical evidence. |
+| 6 | What was the Khmer Empire known for? | Yes — Khmer Empire (0.733) | Yes — hydraulic cities and Angkor. |
+| 7 | What happened during the Cambodian genocide? | Yes — Cambodian Genocide (0.700) | Yes — correct period, perpetrators, scale, and targeted groups. |
+| 8 | What was UNTAC's role in Cambodia? | Yes — United Nations Administered Cambodia (0.758) and United Nations Transitional Authority (0.757) | Yes — correctly describes its 1992–93 administration, peacekeeping, human-rights, and election roles. |
+| 9 | What caused the Cambodian Civil War? | Yes — Cambodian Civil War (0.697) | Yes — correctly declines to invent a cause not supported by the retrieved passages. |
+| 10 | What is the capital of France? | N/A — no relevant source; top score 0.352 | Yes — declined without calling the LLM because the score is below 0.45. |
+
+**Rerun score: 9/10 fully grounded/correct, 1/10 partially grounded due to a
+weaker-than-ideal citation choice (query 1).** The retrieval and abstention
+behavior are working as intended; the remaining issue is citation selection
+among multiple relevant chunks.
+
 10 test queries run against the live pipeline (`sentence-transformers` retrieval, top_k=3, Gemini `gemini-2.5-flash` in `llm` mode) on the full 21-document corpus. For each: the expected source(s), what was actually retrieved, and whether the generated answer was grounded and correct.
 
 | # | Query | Expected source(s) | Retrieved top-3 | Retrieval hit? | Answer grounded/correct? |
